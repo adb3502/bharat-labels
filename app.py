@@ -7,19 +7,20 @@ import io
 import re
 from label_generator import generate_labels_for_codes
 
-# Try to import docx2pdf (only works on Windows with Word installed)
+# Try to import PDF conversion (requires Word)
 try:
-    from docx2pdf import convert
+    from convert_to_pdf import generate_pdfs
     HAS_DOCX2PDF = True
-except ImportError:
+except ImportError as e:
     HAS_DOCX2PDF = False
+    print(f"PDF import failed: {e}")
 
 st.set_page_config(page_title="BHARAT Label Generator", page_icon="🏷️", layout="wide")
 
 st.title("🏷️ BHARAT Study Label Generator")
 st.markdown("Generate sample labels for the BHARAT Study biobanking")
 
-# Output format selection (only show PDF if docx2pdf is available)
+# Output format selection
 if HAS_DOCX2PDF:
     output_format = st.radio(
         "Output format:",
@@ -122,52 +123,57 @@ if codes:
     if st.button("Generate Labels", type="primary", use_container_width=True):
         with st.spinner("Generating labels..."):
             try:
-                # Create temp directory
-                with tempfile.TemporaryDirectory() as tmpdir:
-                    output_dir = Path(tmpdir)
-                    
-                    # Generate DOCX files
-                    docx_files = generate_labels_for_codes(codes, output_dir, date_str)
-                    
-                    # Convert to PDF if requested and available
-                    if output_format == "PDF" and HAS_DOCX2PDF:
-                        pdf_files = []
-                        progress_bar = st.progress(0)
-                        for idx, docx_file in enumerate(docx_files):
-                            pdf_file = docx_file.with_suffix('.pdf')
-                            convert(str(docx_file), str(pdf_file))
-                            pdf_files.append(pdf_file)
-                            progress_bar.progress((idx + 1) / len(docx_files))
-                        
-                        files_to_zip = pdf_files
-                        file_ext = "pdf"
-                    else:
-                        files_to_zip = docx_files
-                        file_ext = "docx"
-                    
-                    # Create zip file in memory
+                if output_format == "PDF" and HAS_DOCX2PDF:
+                    # Generate PDFs using subprocess (files saved in ./output folder)
+                    from io import StringIO
+                    import sys as _sys
+                    old_stdout = _sys.stdout
+                    _sys.stdout = mystdout = StringIO()
+
+                    files_to_zip = generate_pdfs(codes, date_str)
+
+                    output = mystdout.getvalue()
+                    _sys.stdout = old_stdout
+
+                    if output:
+                        with st.expander("Log", expanded=False):
+                            st.code(output)
+
+                    file_ext = "pdf"
+
+                else:
+                    # Generate DOCX using fixed output folder
+                    output_folder = Path(__file__).parent / "output"
+                    output_folder.mkdir(exist_ok=True)
+                    for f in output_folder.glob("*"):
+                        f.unlink()
+
+                    files_to_zip = generate_labels_for_codes(codes, output_folder, date_str)
+                    file_ext = "docx"
+
+                # Create zip
+                if files_to_zip:
                     zip_buffer = io.BytesIO()
                     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
                         for file_path in files_to_zip:
                             zipf.write(file_path, file_path.name)
-                    
+
                     zip_buffer.seek(0)
-                    
-                    # Download button
+
                     filename_suffix = f"_{date_str}" if date_str else ""
-                    st.success("✓ Labels generated successfully!")
+                    st.success(f"✓ Generated {len(files_to_zip)} {file_ext.upper()} files!")
                     st.download_button(
-                        label=f"📥 Download All Labels ({file_ext.upper()}) (ZIP)",
+                        label=f"📥 Download Labels (ZIP)",
                         data=zip_buffer,
                         file_name=f"bharat_labels{filename_suffix}.zip",
                         mime="application/zip",
                         use_container_width=True
                     )
-                    
-                    st.info(f"Generated {len(files_to_zip)} {file_ext.upper()} files")
-                    
+                else:
+                    st.error("No files were generated.")
+
             except Exception as e:
-                st.error(f"Error generating labels: {e}")
+                st.error(f"Error: {e}")
                 st.exception(e)
 
 # Footer
