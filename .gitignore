@@ -3,5 +3,6 @@ __pycache__/
 *.pyc
 output/
 logs/
-worker_hidden.vbs
+*.vbs
+run_server.bat
 .claude/
