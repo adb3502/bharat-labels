@@ -7,7 +7,7 @@ Web application for generating biobanking sample labels for the BHARAT Study (Bi
 - Generate labels for multiple participant codes
 - Input methods: paste codes, CSV upload, Excel upload, or code range
 - Output formats: PDF (requires Microsoft Word) or DOCX
-- 5 label types per participant: Cryovial, Epigenetics, Samples, EDTA, SST/FL/Blood
+- 6 label types per participant: Cryovial, Epigenetics, Samples, EDTA, SST/FL/Blood, Urine
 
 ## Requirements
 
